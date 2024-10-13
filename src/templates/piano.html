@@ -1,0 +1,71 @@
+<div class="piano">
+    <div class="key" data-note="C4" data-frequency="261.63" data-key="a">C</div>
+    <div class="key" data-note="D4" data-frequency="293.66" data-key="s">D</div>
+    <div class="key" data-note="E4" data-frequency="329.63" data-key="d">E</div>
+    <div class="key" data-note="F4" data-frequency="349.23" data-key="f">F</div>
+    <div class="key" data-note="G4" data-frequency="392.00" data-key="g">G</div>
+    <div class="key" data-note="A4" data-frequency="440.00" data-key="h">A</div>
+    <div class="key" data-note="B4" data-frequency="493.88" data-key="j">B</div>
+    <div class="key" data-note="C5" data-frequency="523.25" data-key="k">C</div>
+</div>
+
+<script>
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const keys = document.querySelectorAll('.key');
+    const keyMap = {};
+
+    keys.forEach(key => {
+        key.addEventListener('mousedown', () => playNote(key, true));
+        key.addEventListener('mouseup', () => playNote(key, false));
+        key.addEventListener('mouseout', () => {
+            if (key.classList.contains('active')) {
+                playNote(key, false);
+            }
+        });
+        keyMap[key.dataset.key] = key;
+    });
+
+    document.addEventListener('keydown', (event) => {
+        const key = keyMap[event.key];
+        if (key && !event.repeat) {
+            playNote(key, true);
+        }
+    });
+
+    document.addEventListener('keyup', (event) => {
+        const key = keyMap[event.key];
+        if (key) {
+            playNote(key, false);
+        }
+    });
+
+    function playNote(key, isOn) {
+        const note = key.dataset.note;
+        const frequency = parseFloat(key.dataset.frequency);
+        const state = isOn ? 'on' : 'off';
+        key.classList.toggle('active', isOn);
+        socket.emit('note', { note: note, state: state });
+
+        if (isOn && !key.oscillator) {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+
+            oscillator.start();
+            key.oscillator = oscillator;
+            key.gainNode = gainNode;
+        } else if (!isOn && key.oscillator) {
+            const release = 0.1;
+            key.gainNode.gain.setValueAtTime(key.gainNode.gain.value, audioContext.currentTime);
+            key.gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + release);
+            key.oscillator.stop(audioContext.currentTime + release);
+            key.oscillator = null;
+            key.gainNode = null;
+        }
+    }
+</script>
